@@ -47,7 +47,7 @@ canvas{cursor:crosshair;touch-action:none}
 select{font:inherit;font-size:14px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
 #evl{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
 #evl button{width:100%;text-align:left;border-radius:10px;padding:8px 12px;display:block}
-#evl b{display:block;font-size:14px}#evl span{font-size:12px;color:var(--mut)}
+.act button{width:auto;display:inline-block;padding:3px 10px;font-size:12px;margin:6px 6px 0 0}#evl .jump{width:100%}#evl li{background:var(--bg);border-radius:10px}#evl b{display:block;font-size:14px}#evl span{font-size:12px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -81,9 +81,10 @@ select{font:inherit;font-size:14px;background:var(--card);color:var(--fg);border
 </div>
 <section class="add">
 <h2>Adicionar posição</h2>
-<p style="color:var(--mut);margin:0 0 10px;font-size:14px">Digite as coordenadas ou clique no mapa para preencher latitude e longitude.</p>
+<p style="color:var(--mut);margin:0 0 10px;font-size:14px">Digite o <b>nome da localidade</b> (ex.: Recife, Cabo Verde, Mar do Caribe) ou as coordenadas, ou clique no mapa para preencher latitude e longitude. Se preencher o nome e as coordenadas, vale a coordenada e o nome vira o rótulo.</p>
 <div class="row">
 <label>Data <input id="fDate" type="date"></label>
+<label>Localidade <input id="fPlace" placeholder="ex.: Fernando de Noronha" style="width:210px"></label>
 <label>Latitude <input id="fLat" inputmode="decimal" placeholder="-3.72"></label>
 <label>Longitude <input id="fLon" inputmode="decimal" placeholder="-38.52"></label>
 <button id="add">Adicionar</button>
@@ -92,10 +93,10 @@ select{font:inherit;font-size:14px;background:var(--card);color:var(--fg);border
 </div>
 <span class="err" id="err2" role="alert"></span><span id="saved" style="color:var(--mut);font-size:14px"></span>
 </section>
-<section class="add" id="evh" style="display:none"><h2>Por onde o peixe passou</h2><p style="color:var(--mut);margin:0;font-size:14px">Toque em um lugar para ir até ele no mapa.</p><ol id="evl"></ol></section>
+<section class="add" id="evh" style="display:none"><h2>Por onde o peixe passou</h2><p style="color:var(--mut);margin:0;font-size:14px">Toque em um lugar para ir até ele no mapa.</p><div class="row" style="margin:12px 0 4px"><label>Nova localidade <input id="cName" placeholder="Nome do lugar" style="width:220px"></label><button id="cAdd">Adicionar onde o peixe está agora</button><button id="evrest" class="alt" style="display:none"></button></div><p style="color:var(--mut);margin:0;font-size:13px">A ordem segue o caminho do peixe. Para inserir um lugar entre dois outros, mova a barra de tempo até o ponto desejado e adicione.</p><ol id="evl"></ol></section>
 <details>
 <summary>Colar várias posições de uma vez</summary>
-<p style="color:var(--mut);margin:8px 0 0;font-size:14px">Uma posição por linha, no formato <code>data,latitude,longitude</code> ou só <code>latitude,longitude</code>. Use ponto como separador decimal (ex.: -3.72).</p>
+<p style="color:var(--mut);margin:8px 0 0;font-size:14px">Uma posição por linha, no formato <code>data,latitude,longitude</code>, <code>latitude,longitude</code>, <code>data,nome do lugar</code> ou só <code>nome do lugar</code>. Use ponto como separador decimal (ex.: -3.72).</p>
 <textarea id="txt" spellcheck="false" placeholder="2026-03-01,-3.72,-38.52&#10;2026-03-02,-3.50,-38.10"></textarea>
 <button id="load">Substituir tudo e animar</button><span class="err" id="err" role="alert"></span>
 </details>
@@ -145,6 +146,8 @@ function regionAt(lo,la){
 }
 function nearestPlace(lo,la,maxRank){var b=null,bd=1e9;PL.forEach(function(p){if(p.r>maxRank)return;var d=hll(lo,la,p.lo,p.la);if(d<bd){bd=d;b=p}});return b?{p:b,d:bd}:null}
 var LINES=[['Linha do Equador',0,'lat'],['Trópico de Câncer',23.4366,'lat'],['Trópico de Capricórnio',-23.4366,'lat'],['Círculo Polar Ártico',66.5634,'lat'],['Círculo Polar Antártico',-66.5634,'lat'],['Meridiano de Greenwich',0,'lon']];
+var OV={ren:{},hid:{},cus:[]};
+function useOV(d){var o=d&&d.loc||{};OV={ren:o.ren||{},hid:o.hid||{},cus:o.cus||[]}}
 var EV=[],nextEv=0,hold=0,flash=0,pinned=false,cardEv=null,cardA=0,zf=1,fdt=.016,speakDone=true,speakCap=0,locTick=0,locNow=null;
 function fkm(k){return Math.round(k).toLocaleString('pt-BR')+' km'}
 function fla(v){return Math.abs(v).toFixed(1).replace('.',',')+'° '+(v<0?'S':'N')}
@@ -159,7 +162,7 @@ function buildEvents(){
     for(k=1;k<=m;k++){var u=k/m;smp.push({lo:p[0]+(a[0]-p[0])*u,la:p[1]+(a[1]-p[1])*u,t:(i-1+u)/S,d:dc+seg*u})}
     dc+=seg}
   var total=dc,cands=[];
-  function mk(o,s){o.t=s.t;o.d=s.d;o.lo=s.lo;o.la=s.la;cands.push(o);return o}
+  function mk(o,s){o.key=o.kind==='place'?'p:'+o.title:o.kind==='line'?'l:'+o.title:o.kind==='region'?'r:'+o.title:o.kind;o.t=s.t;o.d=s.d;o.lo=s.lo;o.la=s.la;cands.push(o);return o}
   // regiões
   var prevKey=null,pk=null,cnt=0,cs=null,cr=null;
   smp.forEach(function(s,ix){var r=regionAt(s.lo,s.la),key=r.k+':'+r.name;s.reg=r;
@@ -177,6 +180,8 @@ function buildEvents(){
   PL.forEach(function(pl){var best=1e9,bs=null;
     for(var j=0;j<smp.length;j++){var s=smp[j];if(Math.abs(s.la-pl.la)*111.2>pl.R)continue;var d=hll(s.lo,s.la,pl.lo,pl.la);if(d<best){best=d;bs=s}}
     if(bs&&best<=pl.R)mk({kind:'place',eyebrow:best<20?'Passando por':'Passando perto de',title:pl.n,pl:pl,dist:best,score:(6-pl.r)*10+(1-best/pl.R)*15},bs)});
+  OV.cus.forEach(function(c,ci){var bs=null,bd=1e9;smp.forEach(function(s){var d=hll(s.lo,s.la,c.lo,c.la);if(d<bd){bd=d;bs=s}});
+    if(bs&&(bs.t===0||bs.t===smp[smp.length-1].t)&&bd<30){bs.cname=c.name}else if(bs)mk({kind:'custom',eyebrow:'Passando por',title:c.name,score:2000,fixed:1,ci:ci,key:'c:'+ci},bs)});
   // início e fim (sempre)
   var s0=smp[0],sN=smp[smp.length-1];
   var fx=[mk({kind:'start',eyebrow:'Início da rota',title:'',score:1e3,fixed:1},s0),mk({kind:'end',eyebrow:'Última posição',title:'',score:1e3,fixed:1},sN)];
@@ -184,29 +189,58 @@ function buildEvents(){
   var minD=Math.max(40,Math.min(400,total/26));
   cands.sort(function(a,b){return b.score-a.score});
   var acc=[];cands.forEach(function(c){
+    if(!c.fixed&&OV.hid[c.key])return;
     if(!c.fixed)for(var q=0;q<acc.length;q++)if(Math.abs(acc[q].d-c.d)<minD)return;
     acc.push(c)});
   acc.sort(function(a,b){return a.t-b.t||a.d-b.d});
   acc.forEach(function(e){var rg=e.reg||regionAt(e.lo,e.la);e.reg=rg;e.date=dateAtT(e.t);
     var np=nearestPlace(e.lo,e.la,3);
-    if(e.kind==='start'||e.kind==='end'){var n5=nearestPlace(e.lo,e.la,5);if(n5&&n5.d<80){e.title=n5.p.n;e.l3=TYPE[n5.p.t]+' · '+n5.p.c+(n5.d>=15?' · a '+fkm(n5.d):'')}else{e.title=rg.name;e.l3=np?('Perto de '+np.p.n+' · '+fkm(np.d)):''}}
+    if(e.kind==='start'||e.kind==='end'){var n5=nearestPlace(e.lo,e.la,5),cn=(e.kind==='start'?s0:sN).cname;if(cn){e.title=cn;e.l3='Localidade adicionada por você'}else if(n5&&n5.d<80){e.title=n5.p.n;e.l3=TYPE[n5.p.t]+' · '+n5.p.c+(n5.d>=15?' · a '+fkm(n5.d):'')}else{e.title=rg.name;e.l3=np?('Perto de '+np.p.n+' · '+fkm(np.d)):''}}
     else if(e.kind==='region'){e.l3=np?('Perto de '+np.p.n+' · '+fkm(np.d)):''}
     else if(e.kind==='line'){e.l3=e.lineTxt}
+    else if(e.kind==='custom'){e.l3='Localidade adicionada por você'}
     else{e.l3=TYPE[e.pl.t]+' · '+e.pl.c}
     e.l4=[e.kind==='place'?(e.dist<20?'bem na rota':'a '+fkm(e.dist)+' da rota'):'',e.kind==='place'?rg.name:fla(e.la)+', '+flo(e.lo),e.date].filter(Boolean).join(' · ');
+    e.orig=e.title;if(e.kind!=='custom'&&OV.ren[e.key])e.title=OV.ren[e.key];
     e.say=e.kind==='start'||e.kind==='end'?e.eyebrow+': '+e.title:e.eyebrow+' '+e.title+(e.kind==='place'&&e.pl.c?', '+e.pl.c:'');
     e.pin=e.kind==='place'?[e.pl.lo,e.pl.la]:null});
   EV=acc;renderList();
 }
+function nrm(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()}
+function findPlace(q){
+  var n=nrm(q.split(',')[0]);if(!n)return null;var best=null,bs=1e9;
+  function consider(name,lo,la,rank){var m=nrm(name),sc;if(m===n)sc=0;else if(n.length>=3&&m.indexOf(n)===0)sc=1;else if(n.length>=4&&m.indexOf(n)>=0)sc=2;else return;sc=sc*10+rank;if(sc<bs){bs=sc;best={name:name,lo:lo,la:la}}}
+  PL.forEach(function(p){consider(p.n,p.lo,p.la,p.r)});CT.forEach(function(c){consider(c.name,c.lab[0],c.lab[1],6)});SEAS.forEach(function(s){consider(s.name,s.lab[0],s.lab[1],7)});
+  return best;
+}
 function pinLast(){if(EV.length){cardEv=EV[EV.length-1];pinned=true;announce(cardEv)}}
 function syncNext(incl){nextEv=0;while(nextEv<EV.length&&(incl?EV[nextEv].t<t-1e-9:EV[nextEv].t<=t+1e-9))nextEv++}
+function ovChanged(){buildEvents();syncNext(false);cardEv=null;pinned=false;hold=0;flash=0;save()}
 function renderList(){
   var ol=$('evl');ol.innerHTML='';
-  if(!EV.length){$('evh').style.display='none';return}$('evh').style.display='';
-  EV.forEach(function(e,ix){var li=document.createElement('li'),b=document.createElement('button');b.className='alt';
+  var nh=Object.keys(OV.hid).length;
+  $('evh').style.display=pts.length>1?'':'none';
+  $('evrest').style.display=nh?'':'none';$('evrest').textContent='Restaurar removidas ('+nh+')';
+  EV.forEach(function(e,ix){
+    var li=document.createElement('li'),b=document.createElement('button');b.className='alt jump';
     b.innerHTML='<b></b><span></span>';b.firstChild.textContent=e.kind==='start'?'Início · '+e.title:e.kind==='end'?'Última posição · '+e.title:e.title;
-    b.lastChild.textContent=[e.kind==='place'?TYPE[e.pl.t]:e.kind==='region'?'Região':e.kind==='line'?'Linha':'',e.date].filter(Boolean).join(' · ');
-    b.onclick=function(){jumpEv(ix)};li.appendChild(b);ol.appendChild(li)});
+    b.lastChild.textContent=[e.kind==='place'?TYPE[e.pl.t]:e.kind==='region'?'Região':e.kind==='line'?'Linha':e.kind==='custom'?'Sua localidade':'',e.date].filter(Boolean).join(' · ');
+    b.onclick=function(){jumpEv(ix)};
+    var act=document.createElement('div');act.className='act';
+    var ed=document.createElement('button');ed.className='alt';ed.textContent='Renomear';ed.setAttribute('aria-label','Renomear '+e.title);
+    ed.onclick=function(){
+      li.innerHTML='';var inp=document.createElement('input');inp.value=e.title;inp.setAttribute('aria-label','Novo nome');inp.style.width='100%';
+      var ok=document.createElement('button');ok.textContent='Salvar';ok.style.marginTop='6px';var ca=document.createElement('button');ca.className='alt';ca.textContent='Cancelar';ca.style.cssText='margin:6px 0 0 6px';
+      ok.onclick=function(){var v=inp.value.trim();
+        if(e.kind==='custom'){if(v)OV.cus[e.ci].name=v}
+        else if(!v||v===e.orig)delete OV.ren[e.key];else OV.ren[e.key]=v;
+        ovChanged()};
+      inp.onkeydown=function(k){if(k.key==='Enter')ok.onclick();if(k.key==='Escape')renderList()};
+      ca.onclick=renderList;li.appendChild(inp);li.appendChild(ok);li.appendChild(ca);inp.focus();inp.select()};
+    act.appendChild(ed);
+    if(e.kind!=='start'&&e.kind!=='end'){var rm=document.createElement('button');rm.className='alt';rm.textContent='Remover';rm.setAttribute('aria-label','Remover '+e.title);
+      rm.onclick=function(){if(e.kind==='custom')OV.cus.splice(e.ci,1);else OV.hid[e.key]=1;ovChanged()};act.appendChild(rm)}
+    li.appendChild(b);li.appendChild(act);ol.appendChild(li)});
 }
 function jumpEv(ix){var e=EV[ix];if(!e)return;t=e.t;playing=false;$('play').textContent='Continuar';hold=0;flash=0;speakDone=true;
   cardEv=e;pinned=true;nextEv=ix+1;announce(e);say(e.say);$('cv').scrollIntoView({block:'nearest',behavior:'smooth'})}
@@ -267,7 +301,7 @@ function drawLabels(h){
     var q=P(e.pin?e.pin[0]:e.lo,e.pin?e.pin[1]:e.la);if(q[0]<-20||q[0]>W+20||q[1]<-20||q[1]>H+20)return;
     cx.beginPath();cx.arc(q[0],q[1],3.2,0,7);cx.fillStyle='#ffb978';cx.fill();cx.lineWidth=1.2;cx.strokeStyle='#1a0d04';cx.stroke();
     boxes.push([q[0]-5,q[1]-5,q[0]+5,q[1]+5]);
-    if(e.kind==='place'||e.kind==='line')txt(e.title,q[0]+7,q[1]+4,'600 12px system-ui,sans-serif','#ffd9a8')});
+    if(e.kind==='place'||e.kind==='line'||e.kind==='custom')txt(e.title,q[0]+7,q[1]+4,'600 12px system-ui,sans-serif','#ffd9a8')});
   // lugares
   var mr=h>110?1:h>65?2:h>32?3:h>14?4:5;
   PL.forEach(function(p){if(p.r>mr)return;var q=P(p.lo,p.la);if(q[0]<0||q[0]>W||q[1]<0||q[1]>H)return;
@@ -486,18 +520,24 @@ $('seek').oninput=function(){t=this.value/1000*(pts.length-1);hold=0;flash=0;pin
 $('zoom').onchange=function(){man=null;if(this.checked)$('follow').checked=false;calcView()};
 $('follow').onchange=function(){man=null;if(this.checked)$('zoom').checked=false;calcView()};
 $('load').onclick=function(){
-  var rows=$('txt').value.split(/\r?\n/).map(function(l){return l.trim()}).filter(Boolean),out=[];
+  var rows=$('txt').value.split(/\r?\n/).map(function(l){return l.trim()}).filter(Boolean),out=[],newCus=[];
   for(var i=0;i<rows.length;i++){
     var c=rows[i].split(/[;,\t]+/).map(function(s){return s.trim()}),date='',la,lo;
     if(c.length>=3){date=c[0];la=parseFloat(c[1]);lo=parseFloat(c[2])}else{la=parseFloat(c[0]);lo=parseFloat(c[1])}
-    if(isNaN(la)||isNaN(lo)){if(i===0)continue;$('err').textContent='Linha '+(i+1)+' não tem latitude e longitude válidas.';return}
+    if(isNaN(la)||isNaN(lo)){var nmx=null,dx='';
+      if(c.length===1&&isNaN(parseFloat(c[0])))nmx=c[0];else if(c.length===2&&isNaN(parseFloat(c[1]))){dx=c[0];nmx=c[1]}
+      var fp=nmx&&findPlace(nmx);
+      if(fp){la=fp.la;lo=fp.lo;date=dx;newCus.push({name:fp.name,lo:lo,la:la})}
+      else{if(i===0)continue;$('err').textContent='Linha '+(i+1)+(nmx?': não encontrei "'+nmx+'" na lista de localidades. Use latitude e longitude.':' não tem latitude e longitude válidas.');return}}
     if(Math.abs(la)>90||Math.abs(lo)>180){$('err').textContent='Linha '+(i+1)+': coordenadas fora do intervalo.';return}
     out.push({date:date,lat:la,lon:lo});
   }
   if(out.length<2){$('err').textContent='Informe pelo menos duas posições.';return}
-  $('err').textContent='';setPts(out);save();
+  $('err').textContent='';OV={ren:{},hid:{},cus:[]};newCus.forEach(function(c){OV.cus.push(c)});setPts(out);save();
 };
 window.addEventListener('resize',resize);
+$('cAdd').onclick=function(){var v=$('cName').value.trim();if(!v||!pts.length)return;var h=headLL();OV.cus.push({name:v,lo:h.lon,la:h.lat});$('cName').value='';ovChanged()};
+$('evrest').onclick=function(){OV.hid={};ovChanged()};
 var KEY='rota-peixe-v1',dbDoc=null,pend=null,moved=false,ptrs={};
 var recorder=null,recChunks=[],recTimer=null;
 function spdVal(){return .1*Math.pow(300,$('spd').value/100)}
@@ -556,7 +596,7 @@ $('zreset').onclick=function(){man=null;$('zoom').checked=false;$('follow').chec
 function drawPend(){if(!pend)return;var p=P(pend.lon,pend.lat);cx.strokeStyle='#fff';cx.lineWidth=1.5;cx.beginPath();cx.arc(p[0],p[1],7,0,7);cx.moveTo(p[0]-12,p[1]);cx.lineTo(p[0]+12,p[1]);cx.moveTo(p[0],p[1]-12);cx.lineTo(p[0],p[1]+12);cx.stroke()}
 function status(m){$('saved').textContent=pts.length+(pts.length===1?' posição registrada · ':' posições registradas · ')+m}
 function save(){
-  var data={points:pts.map(function(p){return{date:p.date||'',lat:p.lat,lon:p.lon}})};
+  var data={points:pts.map(function(p){return{date:p.date||'',lat:p.lat,lon:p.lon}}),loc:OV};
   try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}
   if(dbDoc)dbDoc.set(data).then(function(){status('salvo')},function(){status('salvo só neste navegador')});else status('salvo só neste navegador');
 }
@@ -567,14 +607,24 @@ cv.addEventListener('click',function(e){
   var lo=Math.max(-180,Math.min(180,(x-W/2)/V.s+V.cx)),la=Math.max(-90,Math.min(90,V.cy-(y-H/2)/V.s));
   pend={lat:la,lon:lo};$('fLat').value=la.toFixed(2);$('fLon').value=lo.toFixed(2);
 });
-$('add').onclick=function(){
-  var la=parseFloat($('fLat').value.replace(',','.')),lo=parseFloat($('fLon').value.replace(',','.'));
+function doAdd(la,lo,label){
   if(isNaN(la)||isNaN(lo)||Math.abs(la)>90||Math.abs(lo)>180){$('err2').textContent='Informe latitude (-90 a 90) e longitude (-180 a 180).';return}
   $('err2').textContent='';
   var d=$('fDate').value,ds=d?d.split('-').reverse().join('/'):'';
   pend=null;var a=pts.slice();a.push({date:ds,lat:la,lon:lo});
   setPts(a);t=a.length-1;playing=false;$('play').textContent='Repetir';syncNext(false);pinLast();save();
-  $('fLat').value='';$('fLon').value='';
+  $('fLat').value='';$('fLon').value='';$('fPlace').value='';
+  if(label){OV.cus.push({name:label,lo:lo,la:la});ovChanged();pinLast()}
+}
+$('add').onclick=function(){
+  var fl=$('fLat').value.trim(),fo=$('fLon').value.trim(),nm=$('fPlace').value.trim();
+  if(fl||fo||!nm){doAdd(parseFloat(fl.replace(',','.')),parseFloat(fo.replace(',','.')),nm);return}
+  var r=findPlace(nm);if(r){$('err2').textContent='';doAdd(r.la,r.lo,r.name);return}
+  var bad=function(){$('err2').textContent='Não encontrei "'+nm+'" na lista de localidades. Digite latitude e longitude, ou clique no mapa.'};
+  if(!window.fetch){bad();return}
+  $('err2').textContent='Procurando "'+nm+'" na internet…';
+  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=pt-BR&q='+encodeURIComponent(nm)).then(function(x){return x.json()}).then(function(arr){
+    if(arr&&arr[0]&&isFinite(+arr[0].lat)){$('err2').textContent='';doAdd(+arr[0].lat,+arr[0].lon,nm)}else bad()}).catch(bad);
 };
 $('undo').onclick=function(){
   if(!pts.length)return;var a=pts.slice(0,-1);
@@ -584,14 +634,14 @@ $('ex').onclick=function(){setPts(sample());$('saved').textContent='Exemplo na t
 (function(){var n=new Date();$('fDate').value=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2)})();
 resize();setPts([]);requestAnimationFrame(loop);
 var loc=null;try{loc=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-if(fromData(loc)){setPts(fromData(loc));status('salvo só neste navegador')}
+if(fromData(loc)){useOV(loc);setPts(fromData(loc));status('salvo só neste navegador')}
 if(window.claude&&window.claude.use){
   window.claude.use('db').then(function(db){
     if(!db)return;
     dbDoc=db.doc('fish/track');
     dbDoc.get().then(function(s){
       var d=s.exists?fromData(s.data()):null;
-      if(d){setPts(d);status('salvo')}else if(pts.length){save()}
+      if(d){useOV(s.data());setPts(d);status('salvo')}else if(pts.length){save()}
     },function(){dbDoc=null});
   },function(){});
 }

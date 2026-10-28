@@ -90,6 +90,7 @@ select{font:inherit;font-size:14px;background:var(--card);color:var(--fg);border
 <label>Longitude <input id="fLon" inputmode="decimal" placeholder="-38.52"></label>
 <button id="add">Adicionar</button>
 <button id="undo" class="alt">Desfazer última</button>
+<button id="clear" class="alt" title="Apaga todos os pontos e começa uma rota nova">Nova rota</button>
 <button id="ex" class="alt">Ver exemplo</button>
 </div>
 <span class="err" id="err2" role="alert"></span><span id="saved" style="color:var(--mut);font-size:14px"></span>
@@ -727,6 +728,16 @@ $('add').onclick=function(){
 $('undo').onclick=function(){
   if(!pts.length)return;var a=pts.slice(0,-1);
   setPts(a);t=Math.max(a.length-1,0);playing=false;$('play').textContent='Repetir';syncNext(false);pinLast();save();
+};
+var clrT=null;
+$('clear').onclick=function(){
+  var b=this;
+  if(!clrT){b.textContent='Apagar tudo? Clique de novo';clrT=setTimeout(function(){clrT=null;b.textContent='Nova rota'},4000);return}
+  clearTimeout(clrT);clrT=null;b.textContent='Nova rota';
+  OV={ren:{},hid:{},cus:[]};pend=null;setPts([]);t=0;playing=false;$('play').textContent='Pausar';
+  $('seek').value=0;['fLat','fLon','fPlace','txt'].forEach(function(i){$(i).value=''});$('err').textContent='';$('err2').textContent='';
+  ['sDate','sLat','sLon','sDist','sLoc'].forEach(function(i){$(i).textContent='—'});$('sr').textContent='';$('spdv').textContent='';
+  save();
 };
 $('ex').onclick=function(){setPts(sample());$('saved').textContent='Exemplo na tela (não foi salvo). Adicione uma posição para voltar aos seus dados.'};
 (function(){var n=new Date();$('fDate').value=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2)})();

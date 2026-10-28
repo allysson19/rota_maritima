@@ -51,7 +51,7 @@ canvas{cursor:crosshair;touch-action:none}
 <div class="bar">
 <button id="play">Pausar</button>
 <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Posição no tempo">
-<label>Velocidade <input id="spd" type="range" min="1" max="30" value="8"></label>
+<label>Velocidade <input id="spd" type="range" min="0" max="100" step="1" value="77"></label><span id="spdv" style="color:var(--mut);font-size:14px"></span>
 <label><input id="follow" type="checkbox" checked> Seguir o peixe</label>
 <label><input id="zoom" type="checkbox"> Enquadrar a rota</label>
 <span style="display:flex;gap:6px"><button id="zin" class="alt" aria-label="Aproximar" title="Aproximar (ou role o mouse sobre o mapa)">+</button><button id="zout" class="alt" aria-label="Afastar" title="Afastar">−</button><button id="zreset" class="alt" title="Voltar à visão inicial">Restaurar</button></span>
@@ -228,10 +228,11 @@ function draw(){
   cx.font='600 '+(fs>24?14:12)+'px system-ui,sans-serif';cx.lineWidth=3;cx.strokeText(dk,18,fs+32);cx.fillStyle='#ffd0a0';cx.fillText(dk,18,fs+32);
   $('sDate').textContent=ds;$('sLat').textContent=H0.lat.toFixed(2)+'°';$('sLon').textContent=H0.lon.toFixed(2)+'°';$('sDist').textContent=Math.round(dist).toLocaleString('pt-BR')+' km';
   $('seek').value=N>1?t/(N-1)*1000:0;
+  var dsec=(N-1)/spdVal();$('spdv').textContent=N>1?'dura '+(dsec<90?Math.round(dsec)+' s':(dsec/60).toFixed(1).replace('.',',')+' min'):'';
 }
 function loop(ts){
   var dt=Math.min((ts-last)/1000,.1);last=ts;
-  if(playing&&pts.length>1){t+=dt*$('spd').value;if(t>=pts.length-1){t=pts.length-1;playing=false;$('play').textContent='Repetir'}}
+  if(playing&&pts.length>1){t+=dt*spdVal();if(t>=pts.length-1){t=pts.length-1;playing=false;$('play').textContent='Repetir'}}
   if(recorder&&pts.length&&t>=pts.length-1&&!recTimer)recTimer=setTimeout(stopRec,1200);camTick(dt);draw();requestAnimationFrame(loop);
 }
 $('play').onclick=function(){
@@ -256,6 +257,7 @@ $('load').onclick=function(){
 window.addEventListener('resize',resize);
 var KEY='rota-peixe-v1',dbDoc=null,pend=null,moved=false,ptrs={};
 var recorder=null,recChunks=[],recTimer=null;
+function spdVal(){return .1*Math.pow(300,$('spd').value/100)}
 function msg(m){$('recmsg').textContent=m}
 function localSave(name,blob){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},4000)}
 function saveFile(name,blob){

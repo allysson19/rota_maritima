@@ -274,14 +274,14 @@ $('rec').onclick=function(){
   if(recorder){stopRec();return}
   if(pts.length<2){msg('Adicione pelo menos duas posições para gravar.');return}
   if(!cv.captureStream||!window.MediaRecorder){msg('Este navegador não grava vídeo do mapa. Use a gravação de tela do sistema.');return}
-  var types=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'],mt='';
+  var types=['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'],mt='';
   for(var i=0;i<types.length;i++)if(MediaRecorder.isTypeSupported(types[i])){mt=types[i];break}
   if(!mt){msg('Este navegador não grava vídeo do mapa. Use a gravação de tela do sistema.');return}
   recChunks=[];
   var r=new MediaRecorder(cv.captureStream(30),{mimeType:mt,videoBitsPerSecond:6e6});
   r.ondataavailable=function(e){if(e.data&&e.data.size)recChunks.push(e.data)};
-  r.onstop=function(){recorder=null;$('rec').textContent='Gravar vídeo';var b=new Blob(recChunks,{type:'video/webm'});recChunks=[];if(b.size)saveFile('rota-do-peixe.webm',b);else msg('A gravação saiu vazia. Tente de novo.')};
-  recorder=r;t=0;playing=true;$('play').textContent='Pausar';$('rec').textContent='Parar gravação';msg('Gravando…');
+  r.onstop=function(){recorder=null;$('rec').textContent='Gravar vídeo';var ext=/mp4/.test(mt)?'mp4':'webm',b=new Blob(recChunks,{type:'video/'+ext});recChunks=[];if(b.size)saveFile('rota-do-peixe.'+ext,b);else msg('A gravação saiu vazia. Tente de novo.')};
+  recorder=r;t=0;playing=true;$('play').textContent='Pausar';$('rec').textContent='Parar gravação';msg(/mp4/.test(mt)?'Gravando…':'Gravando… (este navegador só grava em WebM)');
   r.start(250);
 };
 $('png').onclick=function(){cv.toBlob(function(b){if(b)saveFile('rota-do-peixe.png',b)},'image/png')};
